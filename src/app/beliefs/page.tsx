@@ -17,7 +17,6 @@ function normalize(b: Partial<Belief> & { id: string; statement: string }): Beli
     state: (b.state as Belief["state"]) || "hypothesis",
     version: b.version ?? 1,
     valid_from: b.valid_from || new Date().toISOString(),
-    recorded_at: (b as { recorded_at?: string }).recorded_at || new Date().toISOString(),
     created_at: b.created_at || new Date().toISOString(),
     evidence_ids: b.evidence_ids || [],
   };
