@@ -20,7 +20,7 @@ import type {
 
 const BASE =
   process.env.NEXT_PUBLIC_BRAIN_API_URL?.replace(/\/$/, "") ||
-  "https://loose-dividend-votes-motivation.trycloudflare.com";
+  "https://chubby-gmt-proved-modem.trycloudflare.com";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
