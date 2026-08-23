@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiBase, getHealth } from "@/lib/api";
+import { apiBase, getHealth, isApiConfigured } from "@/lib/api";
 import { MOCK_HEALTH } from "@/lib/mock";
 
 export function TopBar() {
@@ -10,6 +10,10 @@ export function TopBar() {
   const operator = process.env.NEXT_PUBLIC_OPERATOR_ID || "tyler";
 
   useEffect(() => {
+    if (!isApiConfigured()) {
+      setLive(false);
+      return;
+    }
     getHealth()
       .then((h) => {
         setHealth(h);
@@ -31,9 +35,9 @@ export function TopBar() {
             live ? "bg-green-500/15 text-green-400" : "bg-amber-500/15 text-amber-400"
           }`}
         >
-          {live ? "API live" : "mock mode"}
+          {live ? "API live" : isApiConfigured() ? "API unreachable" : "mock mode"}
         </span>
-        <span className="hidden font-mono text-[10px] text-cockpit-muted sm:inline">
+        <span className="hidden max-w-[220px] truncate font-mono text-[10px] text-cockpit-muted sm:inline">
           {apiBase()}
         </span>
       </div>

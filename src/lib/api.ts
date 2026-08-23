@@ -1,6 +1,8 @@
 /**
  * Brain Runtime API client.
- * Points at the FastAPI backend. Override with NEXT_PUBLIC_BRAIN_API_URL.
+ * Set NEXT_PUBLIC_BRAIN_API_URL (no trailing slash).
+ * Optional NEXT_PUBLIC_BRAIN_API_KEY for production API auth.
+ * With no base URL, callers should fall back to mock data.
  */
 
 import type {
@@ -18,17 +20,27 @@ import type {
   AcceptanceReport,
 } from "@/types/brain";
 
-const BASE =
-  process.env.NEXT_PUBLIC_BRAIN_API_URL?.replace(/\/$/, "") ||
-  "https://chubby-gmt-proved-modem.trycloudflare.com";
+const BASE = (process.env.NEXT_PUBLIC_BRAIN_API_URL || "").replace(/\/$/, "");
+const API_KEY = process.env.NEXT_PUBLIC_BRAIN_API_KEY || "";
+
+export function isApiConfigured(): boolean {
+  return Boolean(BASE);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!BASE) {
+    throw new Error("Brain API not configured (set NEXT_PUBLIC_BRAIN_API_URL)");
+  }
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (API_KEY) {
+    headers["X-Brain-Api-Key"] = API_KEY;
+  }
   const res = await fetch(`${BASE}${path}`, {
     ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers || {}),
-    },
+    headers,
     cache: "no-store",
   });
   if (!res.ok) {
@@ -92,28 +104,12 @@ export async function createPrediction(body: {
   });
 }
 
-export async function recordOutcome(body: {
-  action_id: string;
-  value_created: number;
-  operator_time_cost?: number;
-  prediction_accuracy?: number;
-  trust_impact?: number;
-  legal_risk?: number;
-  prediction_id?: string;
-  edge_ids?: string[];
-  source_keys?: string[];
-}) {
-  return request<Record<string, unknown>>("/outcomes", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+export async function listBeliefs(): Promise<ListResponse<Belief> & { source?: string }> {
+  return request<ListResponse<Belief> & { source?: string }>("/beliefs");
 }
 
-export async function listBeliefs(_params?: {
-  state?: string;
-  q?: string;
-}): Promise<ListResponse<Belief>> {
-  return request<ListResponse<Belief>>("/beliefs");
+export async function getBelief(id: string): Promise<Belief> {
+  return request<Belief>(`/beliefs/${id}`);
 }
 
 export async function listPredictions(): Promise<ListResponse<Prediction>> {
@@ -153,5 +149,5 @@ export async function listAcceptanceReports(): Promise<ListResponse<AcceptanceRe
 }
 
 export function apiBase(): string {
-  return BASE;
+  return BASE || "(not configured)";
 }
