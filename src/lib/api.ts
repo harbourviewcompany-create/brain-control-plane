@@ -21,7 +21,17 @@ import type {
   Source,
 } from "@/types/brain";
 
-const BASE = (process.env.NEXT_PUBLIC_BRAIN_API_URL || "").replace(/\/$/, "");
+const LIVE_RAILWAY_BASE = "https://brain-api-live-production.up.railway.app";
+const DEPRECATED_RAILWAY_BASES = new Set([
+  "https://brain-api-docker-production.up.railway.app",
+  "https://brain-api-production-f142.up.railway.app",
+]);
+
+const CONFIGURED_BASE = (process.env.NEXT_PUBLIC_BRAIN_API_URL || "").replace(/\/$/, "");
+const BASE =
+  !CONFIGURED_BASE || DEPRECATED_RAILWAY_BASES.has(CONFIGURED_BASE)
+    ? LIVE_RAILWAY_BASE
+    : CONFIGURED_BASE;
 const API_KEY = process.env.NEXT_PUBLIC_BRAIN_API_KEY || "";
 
 export function isApiConfigured(): boolean {
