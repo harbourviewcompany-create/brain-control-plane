@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Panel } from "@/components/Panel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConfidenceBar } from "@/components/ConfidenceBar";
@@ -9,9 +12,39 @@ import {
   MOCK_APPROVALS,
   MOCK_SOURCES,
 } from "@/lib/mock";
+import { listBeliefs } from "@/lib/api";
+import type { Belief } from "@/types/brain";
 import Link from "next/link";
 
 export default function CockpitPage() {
+  const [beliefs, setBeliefs] = useState<Belief[]>(MOCK_BELIEFS);
+  const [liveBeliefs, setLiveBeliefs] = useState(false);
+
+  useEffect(() => {
+    listBeliefs()
+      .then((res) => {
+        if (res.items?.length) {
+          setBeliefs(
+            res.items.map((b) => ({
+              id: b.id,
+              statement: b.statement,
+              confidence: b.confidence,
+              state: (b.state as Belief["state"]) || "hypothesis",
+              version: b.version ?? 1,
+              valid_from: b.valid_from || new Date().toISOString(),
+              recorded_at: b.recorded_at || new Date().toISOString(),
+              evidence_ids: b.evidence_ids || [],
+              formula_run_id: b.formula_run_id,
+            }))
+          );
+          setLiveBeliefs(true);
+        }
+      })
+      .catch(() => {
+        setLiveBeliefs(false);
+      });
+  }, []);
+
   const quarantined = MOCK_SOURCES.filter((s) => s.status === "quarantined").length;
   const openContradictions = MOCK_CONTRADICTIONS.filter(
     (c) => c.status !== "resolved_with_note"
@@ -21,7 +54,7 @@ export default function CockpitPage() {
     (c) => c.status === "open" || c.status === "in_progress"
   ).length;
 
-  const beliefCounts = MOCK_BELIEFS.reduce(
+  const beliefCounts = beliefs.reduce(
     (acc, b) => {
       acc[b.state] = (acc[b.state] || 0) + 1;
       return acc;
@@ -36,6 +69,7 @@ export default function CockpitPage() {
           <h1 className="text-lg font-semibold text-cockpit-text">Brain Cockpit</h1>
           <p className="text-xs text-cockpit-muted">
             Attention market · cognitive state · learning & risk
+            {liveBeliefs ? " · beliefs from API" : ""}
           </p>
         </div>
         {openContradictions > 0 && (
@@ -107,7 +141,9 @@ export default function CockpitPage() {
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-cockpit-border">
                 <div className="h-full w-2/3 rounded-full bg-cockpit-accent" />
               </div>
-              <div className="mt-1 font-mono text-[10px] text-cockpit-muted">~67% remaining (mock)</div>
+              <div className="mt-1 font-mono text-[10px] text-cockpit-muted">
+                {liveBeliefs ? `${beliefs.length} live beliefs` : "~67% remaining (mock)"}
+              </div>
             </div>
           </div>
         </Panel>
@@ -117,7 +153,7 @@ export default function CockpitPage() {
             <div>
               <div className="mb-1 text-[10px] uppercase text-cockpit-muted">Top beliefs</div>
               <ul className="space-y-2">
-                {MOCK_BELIEFS.slice(0, 3).map((b) => (
+                {beliefs.slice(0, 3).map((b) => (
                   <li key={b.id}>
                     <Link href={`/beliefs/${b.id}`} className="block hover:text-cockpit-accent">
                       <div className="line-clamp-2 text-[11px] text-cockpit-text">{b.statement}</div>
