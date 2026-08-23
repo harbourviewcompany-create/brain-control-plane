@@ -20,7 +20,7 @@ import type {
 
 const BASE =
   process.env.NEXT_PUBLIC_BRAIN_API_URL?.replace(/\/$/, "") ||
-  "http://127.0.0.1:8000";
+  "https://loose-dividend-votes-motivation.trycloudflare.com";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -113,7 +113,11 @@ export async function listBeliefs(_params?: {
   state?: string;
   q?: string;
 }): Promise<ListResponse<Belief>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<Belief>>("/beliefs");
+}
+
+export async function listPredictions(): Promise<ListResponse<Prediction>> {
+  return request<ListResponse<Prediction>>("/predictions");
 }
 
 export async function listSignals(): Promise<ListResponse<Signal>> {
@@ -133,10 +137,6 @@ export async function listContradictions(): Promise<ListResponse<Contradiction>>
 }
 
 export async function listCuriosityTasks(): Promise<ListResponse<CuriosityTask>> {
-  return { items: [], total: 0 };
-}
-
-export async function listPredictions(): Promise<ListResponse<Prediction>> {
   return { items: [], total: 0 };
 }
 
