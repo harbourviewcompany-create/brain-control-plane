@@ -2,7 +2,7 @@
  * Brain Runtime API client.
  * Set NEXT_PUBLIC_BRAIN_API_URL (no trailing slash).
  * Optional NEXT_PUBLIC_BRAIN_API_KEY for production API auth.
- * With no base URL, callers should fall back to mock data.
+ * With no base URL, callers should show explicit not-configured state.
  */
 
 import type {
@@ -18,6 +18,7 @@ import type {
   Signal,
   Outcome,
   AcceptanceReport,
+  Source,
 } from "@/types/brain";
 
 const BASE = (process.env.NEXT_PUBLIC_BRAIN_API_URL || "").replace(/\/$/, "");
@@ -117,35 +118,39 @@ export async function listPredictions(): Promise<ListResponse<Prediction>> {
 }
 
 export async function listSignals(): Promise<ListResponse<Signal>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<Signal>>("/signals");
 }
 
 export async function listOpportunities(): Promise<ListResponse<Opportunity>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<Opportunity>>("/opportunities");
 }
 
 export async function listApprovals(): Promise<ListResponse<ApprovalRequest>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<ApprovalRequest>>("/approvals");
 }
 
 export async function listContradictions(): Promise<ListResponse<Contradiction>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<Contradiction>>("/contradictions");
 }
 
 export async function listCuriosityTasks(): Promise<ListResponse<CuriosityTask>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<CuriosityTask>>("/curiosity");
+}
+
+export async function listSources(): Promise<ListResponse<Source>> {
+  return request<ListResponse<Source>>("/sources");
 }
 
 export async function listOutcomes(): Promise<ListResponse<Outcome>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<Outcome>>("/outcomes");
 }
 
 export async function listFormulaRuns(): Promise<ListResponse<FormulaRun>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<FormulaRun>>("/formula-runs");
 }
 
 export async function listAcceptanceReports(): Promise<ListResponse<AcceptanceReport>> {
-  return { items: [], total: 0 };
+  return request<ListResponse<AcceptanceReport>>("/acceptance-reports");
 }
 
 export function apiBase(): string {
