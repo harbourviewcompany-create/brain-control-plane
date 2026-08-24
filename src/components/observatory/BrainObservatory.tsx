@@ -62,10 +62,6 @@ const EMPTY_SCENE: CognitiveScene = {
   },
 };
 
-function degradedSurface(error: string): string {
-  return error.split(":", 1)[0]?.trim() || "read surface";
-}
-
 export function BrainObservatory() {
   const { snapshot, history, loading } = useBrainObservatory();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -77,8 +73,6 @@ export function BrainObservatory() {
   useEffect(() => {
     if (selectedId && !scene.nodes.some((node) => node.id === selectedId)) setSelectedId(null);
   }, [scene.nodes, selectedId]);
-
-  const degraded = displayedSnapshot?.errors.map(degradedSurface) ?? [];
 
   return (
     <div className="observatory-root">
@@ -93,17 +87,10 @@ export function BrainObservatory() {
             <span>COGNITIVE</span><strong>{scene.cognitiveCount}</strong>
             <span className="field-readout__diagnostic">DIAGNOSTIC</span><strong>{scene.diagnosticCount}</strong>
           </div>
-          <div className="field-readout field-readout--right" aria-label="Explicit relation count">
-            <span>EXPLICIT RELATIONS</span>
+          <div className="field-readout field-readout--right" aria-label="Mapped relation count">
+            <span>MAPPED RELATIONS</span>
             <strong>{scene.edges.length}</strong>
           </div>
-
-          {degraded.length ? (
-            <div className="read-degradation" role="status">
-              <span>OBSERVABILITY PARTIAL</span>
-              <strong>{degraded.join(" · ")}</strong>
-            </div>
-          ) : null}
         </section>
 
         <ThoughtInspector node={selectedNode} scene={scene} onClose={() => setSelectedId(null)} />
