@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Verify keyed BFF routes and durable writes
+      - name: Verify BFF identity auth and durable writes
         env:
           BASE_URL: https://thebrain-sandy.vercel.app
         run: |
@@ -64,8 +64,8 @@ jobs:
 
           token = uuid.uuid4().hex[:12]
           signal_body = {
-              "content": f"[prod-smoke:{token}] keyed BFF signal persistence probe",
-              "claim": "Production BFF keyed forwarding and signal persistence are operational",
+              "content": f"[prod-smoke:{token}] BFF identity-auth signal persistence probe",
+              "claim": "Production BFF identity authentication and signal persistence are operational",
               "source_key": "production_smoke",
               "source_reliability": 1.0,
               "supports": True,
@@ -77,18 +77,18 @@ jobs:
               "noise_probability": 1.0,
               "operator_burden": 0.0,
               "metadata": {"smoke": True, "token": token},
-              "process_now": False,
+              "process_now": True,
           }
           _, _, signal = request("/api/brain/signals", "POST", signal_body)
           if not isinstance(signal, dict) or not signal.get("id"):
               raise SystemExit(f"signal create response missing id: {signal!r}")
           signal_id = signal["id"]
           _, signals_text, _ = request("/api/brain/signals")
-          if signal_id not in signals_text and token not in signals_text:
-              raise SystemExit("created signal was not observable in GET /signals")
+          if token not in signals_text:
+              raise SystemExit("processed signal evidence was not observable in GET /signals")
 
           prediction_body = {
-              "statement": f"[prod-smoke:{token}] keyed BFF prediction persistence probe",
+              "statement": f"[prod-smoke:{token}] BFF identity-auth prediction persistence probe",
               "expected_value": 0.0,
               "confidence": 0.5,
               "horizon_seconds": 3600,
