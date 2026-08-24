@@ -1,0 +1,58 @@
+name: Brain Observatory Verify
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/verify-observatory.mjs"
+      - "package.json"
+      - "tailwind.config.ts"
+      - "docs/BRAIN_OBSERVATORY.md"
+      - ".github/workflows/observatory-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+        continue-on-error: true
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Observatory structural tests
+        run: npm run test:observatory
+      - name: Production build
+        run: npm run build
+      - name: Existing production BFF read smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://thebrain-sandy.vercel.app/api/brain"
+          curl --retry 4 --retry-all-errors --retry-delay 2 --fail --silent --show-error "$base/health" -o /tmp/health.json
+          curl --retry 4 --retry-all-errors --retry-delay 2 --fail --silent --show-error "$base/signals" -o /tmp/signals.json
+          curl --retry 4 --retry-all-errors --retry-delay 2 --fail --silent --show-error "$base/organism/cockpit" -o /tmp/organism.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const health = JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));
+          const signals = JSON.parse(fs.readFileSync('/tmp/signals.json','utf8'));
+          const organism = JSON.parse(fs.readFileSync('/tmp/organism.json','utf8'));
+          if (health.status !== 'ok') throw new Error(`health status ${health.status}`);
+          if (!Array.isArray(signals.items)) throw new Error('signals.items missing');
+          if (!organism || typeof organism !== 'object') throw new Error('organism payload missing');
+          console.log(JSON.stringify({
+            health: { status: health.status, version: health.version, database: health.database, persistence: health.persistence, heartbeat: health.heartbeat },
+            signals: { count: signals.items.length, latest: signals.items.slice(0, 5).map(s => ({ id: s.id, source_id: s.source_id, attention_score: s.attention_score, novelty: s.novelty, urgency: s.urgency })) },
+            organism: { keys: Object.keys(organism).sort() }
+          }, null, 2));
+          NODE
