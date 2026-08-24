@@ -1,0 +1,39 @@
+/* Final responsive composition corrections from rendered Observatory evidence. */
+
+@media (max-width: 760px) {
+  /* Keep the semantic quiet-state annotation out of the organism core. */
+  .cognitive-field__quiet-state {
+    left: 12px;
+    top: 57%;
+    width: 150px;
+    transform: none;
+    text-align: left;
+  }
+
+  .cognitive-field__quiet-state span {
+    font-size: 7px;
+    line-height: 1.25;
+    letter-spacing: .14em;
+  }
+
+  .cognitive-field__quiet-state strong {
+    display: none;
+  }
+
+  .cognitive-field__quiet-state em {
+    margin-top: 5px;
+    font-size: 7px;
+    line-height: 1.35;
+  }
+
+  .field-readout--right {
+    max-width: 126px;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .field-readout--right span {
+    max-width: 86px;
+    line-height: 1.25;
+  }
+}
