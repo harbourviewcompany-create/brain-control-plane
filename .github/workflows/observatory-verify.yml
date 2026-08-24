@@ -6,6 +6,7 @@ on:
       - "src/**"
       - "scripts/verify-observatory.mjs"
       - "package.json"
+      - "eslint.config.mjs"
       - "tailwind.config.ts"
       - "docs/BRAIN_OBSERVATORY.md"
       - ".github/workflows/observatory-verify.yml"
@@ -21,9 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-        continue-on-error: true
+          node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
       - name: Lint
