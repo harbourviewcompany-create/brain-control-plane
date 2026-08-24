@@ -1,0 +1,108 @@
+name: Brain Production BFF Smoke
+
+on:
+  push:
+    branches:
+      - ops/brain-prod-bff-smoke-20260824
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify keyed BFF routes and durable writes
+        env:
+          BASE_URL: https://thebrain-sandy.vercel.app
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          import urllib.error
+          import urllib.request
+          import uuid
+
+          base = os.environ["BASE_URL"].rstrip("/")
+
+          def request(path, method="GET", body=None):
+              data = None
+              headers = {"Accept": "application/json", "User-Agent": "brain-production-smoke/1.0"}
+              if body is not None:
+                  data = json.dumps(body).encode("utf-8")
+                  headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      status = response.status
+                      text = response.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as exc:
+                  status = exc.code
+                  text = exc.read().decode("utf-8", "replace")
+              print(f"{method} {path} -> {status}")
+              print(text[:2000])
+              if status >= 400:
+                  raise SystemExit(f"request failed: {method} {path} -> {status}")
+              try:
+                  payload = json.loads(text)
+              except json.JSONDecodeError:
+                  payload = None
+              return status, text, payload
+
+          _, _, health = request("/api/brain/health")
+          if not isinstance(health, dict) or health.get("version") != "0.8.1":
+              raise SystemExit(f"unexpected health payload: {health!r}")
+          if health.get("persistence") != "postgres":
+              raise SystemExit(f"unexpected persistence mode: {health!r}")
+
+          # These routes are protected upstream; 2xx through the BFF proves the server-only
+          # Vercel BRAIN_API_KEY is accepted by the keyed Railway deployment.
+          request("/api/brain/signals")
+          request("/api/brain/organism/cockpit")
+
+          token = uuid.uuid4().hex[:12]
+          signal_body = {
+              "content": f"[prod-smoke:{token}] keyed BFF signal persistence probe",
+              "claim": "Production BFF keyed forwarding and signal persistence are operational",
+              "source_key": "production_smoke",
+              "source_reliability": 1.0,
+              "supports": True,
+              "novelty": 0.0,
+              "urgency": 0.0,
+              "commercial_upside": 0.0,
+              "contradiction_value": 0.0,
+              "uncertainty_reduction": 0.0,
+              "noise_probability": 1.0,
+              "operator_burden": 0.0,
+              "metadata": {"smoke": True, "token": token},
+              "process_now": False,
+          }
+          _, _, signal = request("/api/brain/signals", "POST", signal_body)
+          if not isinstance(signal, dict) or not signal.get("id"):
+              raise SystemExit(f"signal create response missing id: {signal!r}")
+          signal_id = signal["id"]
+          _, signals_text, _ = request("/api/brain/signals")
+          if signal_id not in signals_text and token not in signals_text:
+              raise SystemExit("created signal was not observable in GET /signals")
+
+          prediction_body = {
+              "statement": f"[prod-smoke:{token}] keyed BFF prediction persistence probe",
+              "expected_value": 0.0,
+              "confidence": 0.5,
+              "horizon_seconds": 3600,
+              "source_keys": ["production_smoke"],
+              "metadata": {"smoke": True, "token": token},
+          }
+          _, _, prediction = request("/api/brain/predictions", "POST", prediction_body)
+          if not isinstance(prediction, dict) or not prediction.get("id"):
+              raise SystemExit(f"prediction create response missing id: {prediction!r}")
+          prediction_id = prediction["id"]
+          _, _, persisted_prediction = request(f"/api/brain/predictions/{prediction_id}")
+          if not isinstance(persisted_prediction, dict) or persisted_prediction.get("id") != prediction_id:
+              raise SystemExit("prediction persistence read-back failed")
+
+          print("SMOKE_OK")
+          print(json.dumps({"signal_id": signal_id, "prediction_id": prediction_id, "token": token}))
+          PY
