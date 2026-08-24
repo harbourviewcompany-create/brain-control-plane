@@ -21,24 +21,35 @@ export function ThoughtInspector({
   const relations = scene.edges
     .filter((edge) => edge.source === node.id || edge.target === node.id)
     .map((edge) => {
-      const otherId = edge.source === node.id ? edge.target : edge.source;
+      const outgoing = edge.source === node.id;
+      const otherId = outgoing ? edge.target : edge.source;
       const other = scene.nodes.find((candidate) => candidate.id === otherId);
-      return { edge, other };
+      return { edge, other, outgoing };
     });
 
   return (
     <aside className="thought-inspector" aria-live="polite" aria-label={`Inspect ${node.kind}`}>
       <div className="thought-inspector__header">
         <div>
-          <span className={`kind-chip kind-${node.kind}`}>{node.kind}</span>
+          <div className="thought-inspector__chips">
+            <span className={`kind-chip kind-${node.kind}`}>{node.kind}</span>
+            <span className={`layer-chip layer-${node.layer}`}>{node.layer}</span>
+          </div>
           <h2>{node.label}</h2>
           <p>{node.summary}</p>
         </div>
         <button type="button" className="inspector-close" onClick={onClose} aria-label="Close inspector">×</button>
       </div>
 
+      {node.layer === "diagnostic" ? (
+        <div className="thought-inspector__diagnostic-note">
+          <span>DIAGNOSTIC CHANNEL</span>
+          <p>This is real operational data, but it is intentionally isolated from cognitive activity so verification traffic does not masquerade as thought.</p>
+        </div>
+      ) : null}
+
       <div className="thought-inspector__identity">
-        <span>ID</span>
+        <span>IDENTITY</span>
         <code>{node.objectId}</code>
         {node.timestamp && <time dateTime={node.timestamp}>{new Date(node.timestamp).toLocaleString()}</time>}
       </div>
@@ -54,16 +65,16 @@ export function ThoughtInspector({
 
       <section className="thought-inspector__relations">
         <div className="inspector-section-title">
-          <span>RELATIONS</span>
+          <span>CAUSAL / GRAPH LINEAGE</span>
           <strong>{relations.length}</strong>
         </div>
         {relations.length === 0 ? (
-          <p className="inspector-empty">No explicit relation is exposed for this object in the current scene.</p>
+          <p className="inspector-empty">Brain exposes no explicit relation for this object in the current read model. The Observatory therefore renders it independently rather than inventing lineage.</p>
         ) : (
           <ul>
-            {relations.map(({ edge, other }) => (
+            {relations.map(({ edge, other, outgoing }) => (
               <li key={edge.id}>
-                <span>{edge.relation}</span>
+                <span>{outgoing ? "→" : "←"} {edge.relation}</span>
                 <strong>{other?.label ?? "Unresolved object"}</strong>
               </li>
             ))}
@@ -78,7 +89,7 @@ export function ThoughtInspector({
 
       {node.route && (
         <Link href={node.route} className="inspector-action">
-          Open detailed surface <span aria-hidden="true">↗</span>
+          Open operator surface <span aria-hidden="true">↗</span>
         </Link>
       )}
     </aside>
