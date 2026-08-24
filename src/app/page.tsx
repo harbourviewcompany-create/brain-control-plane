@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ConfidenceBar } from "@/components/ConfidenceBar";
 import {
   getHealth,
+  getOrganismCockpit,
   isApiConfigured,
   listApprovals,
   listBeliefs,
@@ -22,6 +23,7 @@ import type {
   CuriosityTask,
   HealthResponse,
   ListResponse,
+  OrganismCockpit,
   Signal,
   Source,
 } from "@/types/brain";
@@ -72,6 +74,7 @@ export default function CockpitPage() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [organism, setOrganism] = useState<OrganismCockpit | null | undefined>(undefined);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,6 +96,7 @@ export default function CockpitPage() {
         curiosityResult,
         approvalResult,
         sourceResult,
+        organismResult,
       ] = await Promise.allSettled([
         getHealth(),
         listBeliefs(),
@@ -101,6 +105,7 @@ export default function CockpitPage() {
         listCuriosityTasks(),
         listApprovals(),
         listSources(),
+        getOrganismCockpit(),
       ]);
 
       if (cancelled) return;
@@ -115,6 +120,11 @@ export default function CockpitPage() {
       setCuriosityTasks(fulfilledItems(curiosityResult, "curiosity", nextErrors));
       setApprovals(fulfilledItems(approvalResult, "approvals", nextErrors));
       setSources(fulfilledItems(sourceResult, "sources", nextErrors));
+      if (organismResult.status === "fulfilled") {
+        setOrganism(organismResult.value);
+      } else {
+        setOrganism(null);
+      }
       setErrors(nextErrors);
       setLoading(false);
     }
@@ -178,6 +188,28 @@ export default function CockpitPage() {
             ))}
           </ul>
         </Panel>
+      )}
+
+      {!loading && (
+        <Link
+          href="/organism"
+          className="flex items-center justify-between rounded border border-cockpit-border bg-cockpit-panel/80 px-3 py-2 text-xs hover:border-cockpit-accent/40"
+        >
+          <span className="text-cockpit-muted">Cognitive organism layer</span>
+          <span className="font-mono text-[11px]">
+            {organism
+              ? (
+                  <span className="text-green-400">live → open</span>
+                )
+              : organism === null
+                ? (
+                    <span className="text-amber-400">not on this API deploy (promote Railway main)</span>
+                  )
+                : (
+                    <span className="text-cockpit-muted">checking…</span>
+                  )}
+          </span>
+        </Link>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -259,7 +291,7 @@ export default function CockpitPage() {
               </div>
               <div className="mt-1 font-mono text-[10px] text-cockpit-muted/80">
                 {health
-                  ? `${health.beliefs} beliefs · ${health.events} events · ${health.predictions} predictions`
+                  ? `${health.beliefs} beliefs · ${health.events ?? 0} events · ${health.predictions ?? 0} predictions`
                   : "health unavailable"}
               </div>
             </div>
