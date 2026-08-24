@@ -1,3 +1,5 @@
+import { getVercelOidcToken } from "@vercel/oidc";
+
 /**
  * Server-only upstream config for the Brain Runtime API.
  * Used exclusively by /api/brain/[...path] — never import from client components.
@@ -28,6 +30,15 @@ export function upstreamApiKey(): string {
 
 export function upstreamKeyConfigured(): boolean {
   return Boolean(upstreamApiKey());
+}
+
+async function upstreamVercelOidcToken(): Promise<string> {
+  if (!process.env.VERCEL) return "";
+  try {
+    return (await getVercelOidcToken()) || "";
+  } catch {
+    return "";
+  }
 }
 
 const PUBLIC_UPSTREAM_PATHS = new Set(["health", "ready"]);
@@ -76,14 +87,17 @@ export async function proxyToBrain(
     return Response.json({ detail: "path_not_allowed" }, { status: 404 });
   }
 
-  const key = upstreamApiKey();
+  const [oidcToken, key] = await Promise.all([
+    upstreamVercelOidcToken(),
+    Promise.resolve(upstreamApiKey()),
+  ]);
   const isPublic = PUBLIC_UPSTREAM_PATHS.has(pathSegments[0]);
 
-  if (!key && !isPublic) {
+  if (!oidcToken && !key && !isPublic) {
     return Response.json(
       {
-        detail: "brain_bff_api_key_not_configured",
-        hint: "Set server env BRAIN_API_KEY on the Vercel project to the same value as Railway BRAIN_API_KEY, then redeploy.",
+        detail: "brain_bff_upstream_identity_unavailable",
+        hint: "The BFF has neither Vercel deployment identity nor the legacy server API-key fallback.",
       },
       { status: 503, headers: { "cache-control": "no-store" } }
     );
@@ -98,6 +112,7 @@ export async function proxyToBrain(
   };
   const contentType = init.headers?.get("content-type");
   if (contentType) headers["content-type"] = contentType;
+  if (oidcToken) headers.authorization = `Bearer ${oidcToken}`;
   if (key) headers["X-Brain-Api-Key"] = key;
 
   const upstream = await fetch(url, {
@@ -113,16 +128,25 @@ export async function proxyToBrain(
   if (ct) outHeaders.set("content-type", ct);
   outHeaders.set("cache-control", "no-store");
 
-  // Clarify upstream 401 when a key was sent (likely mismatch) vs missing.
-  if (upstream.status === 401 && key) {
-    return Response.json(
-      {
-        detail: "upstream_rejected_api_key",
-        hint: "Vercel BRAIN_API_KEY does not match Railway BRAIN_API_KEY. Copy the exact Railway value, save on Vercel (Production), redeploy.",
-        upstream: text.slice(0, 200),
-      },
-      { status: 401, headers: outHeaders }
-    );
+  if (upstream.status === 401) {
+    if (oidcToken) {
+      return Response.json(
+        {
+          detail: "upstream_rejected_vercel_identity",
+          upstream: text.slice(0, 200),
+        },
+        { status: 401, headers: outHeaders }
+      );
+    }
+    if (key) {
+      return Response.json(
+        {
+          detail: "upstream_rejected_api_key",
+          upstream: text.slice(0, 200),
+        },
+        { status: 401, headers: outHeaders }
+      );
+    }
   }
 
   return new Response(text, {
