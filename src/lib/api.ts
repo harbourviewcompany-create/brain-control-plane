@@ -27,7 +27,6 @@ import type {
   OrganismPersistenceStatus,
 } from "@/types/brain";
 
-/** Same-origin BFF prefix — not the Railway host. */
 const BFF = "/api/brain";
 
 export function isApiConfigured(): boolean {
@@ -55,7 +54,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Soft request: returns null on 404 (route not deployed yet). */
+/** Soft request: null on 404 only. Auth errors still throw so cockpit shows them. */
 async function requestOptional<T>(path: string): Promise<T | null> {
   try {
     const res = await fetch(`${BFF}${path}`, {
@@ -68,8 +67,9 @@ async function requestOptional<T>(path: string): Promise<T | null> {
       throw new Error(`Brain API ${res.status}: ${body || res.statusText}`);
     }
     return res.json() as Promise<T>;
-  } catch {
-    return null;
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("404")) return null;
+    throw e;
   }
 }
 
@@ -175,8 +175,6 @@ export async function listAcceptanceReports(): Promise<ListResponse<AcceptanceRe
   return request<ListResponse<AcceptanceReport>>("/acceptance-reports");
 }
 
-// --- Cognitive organism layer (null when upstream lacks routes) ---
-
 export async function getOrganismCockpit(): Promise<OrganismCockpit | null> {
   return requestOptional<OrganismCockpit>("/organism/cockpit");
 }
@@ -202,4 +200,14 @@ export async function listOrganismQuarantine(): Promise<OrganismQuarantineItem[]
 
 export async function getOrganismPersistenceStatus(): Promise<OrganismPersistenceStatus | null> {
   return requestOptional<OrganismPersistenceStatus>("/organism/persistence/status");
+}
+
+export async function getBffStatus(): Promise<{
+  brain_api_key_configured: boolean;
+  fix: string | null;
+  sample_authed_beliefs: { status: number; detail?: string } | null;
+}> {
+  const res = await fetch("/api/brain-status", { cache: "no-store" });
+  if (!res.ok) throw new Error(`status ${res.status}`);
+  return res.json();
 }

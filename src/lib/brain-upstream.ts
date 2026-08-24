@@ -23,8 +23,11 @@ export function upstreamBase(): string {
 }
 
 export function upstreamApiKey(): string {
-  // Prefer server-only key. Never require NEXT_PUBLIC_ key.
-  return process.env.BRAIN_API_KEY || "";
+  return (process.env.BRAIN_API_KEY || "").trim();
+}
+
+export function upstreamKeyConfigured(): boolean {
+  return Boolean(upstreamApiKey());
 }
 
 const PUBLIC_UPSTREAM_PATHS = new Set(["health", "ready"]);
@@ -74,13 +77,15 @@ export async function proxyToBrain(
   }
 
   const key = upstreamApiKey();
-  if (!key && !PUBLIC_UPSTREAM_PATHS.has(pathSegments[0])) {
+  const isPublic = PUBLIC_UPSTREAM_PATHS.has(pathSegments[0]);
+
+  if (!key && !isPublic) {
     return Response.json(
-      { detail: "brain_bff_api_key_not_configured" },
       {
-        status: 503,
-        headers: { "cache-control": "no-store" },
-      }
+        detail: "brain_bff_api_key_not_configured",
+        hint: "Set server env BRAIN_API_KEY on the Vercel project to the same value as Railway BRAIN_API_KEY, then redeploy.",
+      },
+      { status: 503, headers: { "cache-control": "no-store" } }
     );
   }
 
@@ -93,10 +98,7 @@ export async function proxyToBrain(
   };
   const contentType = init.headers?.get("content-type");
   if (contentType) headers["content-type"] = contentType;
-
-  if (key) {
-    headers["X-Brain-Api-Key"] = key;
-  }
+  if (key) headers["X-Brain-Api-Key"] = key;
 
   const upstream = await fetch(url, {
     method: init.method,
@@ -110,6 +112,18 @@ export async function proxyToBrain(
   const ct = upstream.headers.get("content-type");
   if (ct) outHeaders.set("content-type", ct);
   outHeaders.set("cache-control", "no-store");
+
+  // Clarify upstream 401 when a key was sent (likely mismatch) vs missing.
+  if (upstream.status === 401 && key) {
+    return Response.json(
+      {
+        detail: "upstream_rejected_api_key",
+        hint: "Vercel BRAIN_API_KEY does not match Railway BRAIN_API_KEY. Copy the exact Railway value, save on Vercel (Production), redeploy.",
+        upstream: text.slice(0, 200),
+      },
+      { status: 401, headers: outHeaders }
+    );
+  }
 
   return new Response(text, {
     status: upstream.status,
