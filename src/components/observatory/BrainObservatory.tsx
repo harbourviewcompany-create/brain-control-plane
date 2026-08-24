@@ -30,8 +30,41 @@ const EMPTY_SCENE: CognitiveScene = {
     opportunity: 0,
     agency: 0,
     quarantine: 0,
+    goal: 0,
+    debate: 0,
+    idea: 0,
+    dream: 0,
+    development: 0,
+  },
+  cognitiveCount: 0,
+  diagnosticCount: 0,
+  zones: [],
+  organism: {
+    focus: null,
+    phase: null,
+    assessment: null,
+    stress: 0,
+    dominantGoal: null,
+    dominantGoalPressure: 0,
+    protectOverridesExploit: false,
+    activeGoals: [],
+    workspaceItems: 0,
+    workspaceCapacity: 0,
+    pressures: {
+      uncertainty: 0,
+      contradiction: 0,
+      curiosity: 0,
+      revenue: 0,
+      risk: 0,
+      memory: 0,
+      action: 0,
+    },
   },
 };
+
+function degradedSurface(error: string): string {
+  return error.split(":", 1)[0]?.trim() || "read surface";
+}
 
 export function BrainObservatory() {
   const { snapshot, history, loading } = useBrainObservatory();
@@ -45,26 +78,30 @@ export function BrainObservatory() {
     if (selectedId && !scene.nodes.some((node) => node.id === selectedId)) setSelectedId(null);
   }, [scene.nodes, selectedId]);
 
+  const degraded = displayedSnapshot?.errors.map(degradedSurface) ?? [];
+
   return (
     <div className="observatory-root">
-      <SystemPulse snapshot={displayedSnapshot} loading={loading} isLive={scrubIndex === null} />
+      <SystemPulse snapshot={displayedSnapshot} scene={scene} loading={loading} isLive={scrubIndex === null} />
       <ObservatoryDock />
 
       <main className="observatory-stage">
         <section className="observatory-field-shell" aria-label="Live cognitive field">
           <CognitiveField scene={scene} selectedId={selectedId} onSelect={setSelectedId} />
-          <div className="field-readout field-readout--left" aria-hidden="true">
-            <span>OBSERVED OBJECTS</span>
-            <strong>{scene.nodes.length}</strong>
+
+          <div className="field-readout field-readout--left" aria-label="Cognitive field object counts">
+            <span>COGNITIVE</span><strong>{scene.cognitiveCount}</strong>
+            <span className="field-readout__diagnostic">DIAGNOSTIC</span><strong>{scene.diagnosticCount}</strong>
           </div>
-          <div className="field-readout field-readout--right" aria-hidden="true">
+          <div className="field-readout field-readout--right" aria-label="Explicit relation count">
             <span>EXPLICIT RELATIONS</span>
             <strong>{scene.edges.length}</strong>
           </div>
-          {displayedSnapshot?.errors.length ? (
+
+          {degraded.length ? (
             <div className="read-degradation" role="status">
-              <span>PARTIAL READ</span>
-              <strong>{displayedSnapshot.errors.length} surface{displayedSnapshot.errors.length === 1 ? "" : "s"} degraded</strong>
+              <span>OBSERVABILITY PARTIAL</span>
+              <strong>{degraded.join(" · ")}</strong>
             </div>
           ) : null}
         </section>
