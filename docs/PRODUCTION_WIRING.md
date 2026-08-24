@@ -2,7 +2,7 @@
 
 This document is the authoritative production-wiring record for the Brain runtime and the Vercel control plane.
 
-Verified snapshot: 2026-08-24.
+Verified runtime baseline snapshot: 2026-08-24.
 
 ## Repository boundary
 
@@ -101,7 +101,7 @@ Vercel deployment identity remains the primary production authentication path.
 
 ## Verified production deployment mapping
 
-This section records the verified production snapshot on 2026-08-24. Deployment identifiers are historical evidence for this snapshot and will change on subsequent deployments.
+This section records the last runtime-affecting production baseline verified immediately before this documentation-only boundary cleanup. Merging documentation can produce newer hosting deployment IDs even when application behavior is unchanged, so these identifiers are evidence of the verified runtime baseline rather than a promise that they remain the newest docs-only deployment.
 
 ### Railway
 
@@ -112,7 +112,7 @@ This section records the verified production snapshot on 2026-08-24. Deployment 
 - service: `brain-api-live`
 - service ID: `81c88785-4d36-4621-8125-8c22b2ef3520`
 - source repository: `harbourviewcompany-create/Brain`
-- deployed Brain commit: `2acb3d4bd02e85607edf27ab1f736202c8688d1c`
+- runtime baseline Brain commit: `2acb3d4bd02e85607edf27ab1f736202c8688d1c`
 - Railway deployment ID: `99fefce8-c4a0-4096-b498-ab88c23206d5`
 - deployment status: `SUCCESS`
 - production URL: `https://brain-api-live-production.up.railway.app`
@@ -122,13 +122,13 @@ This section records the verified production snapshot on 2026-08-24. Deployment 
 - team: `harbourview`
 - project: `thebrain`
 - source repository: `harbourviewcompany-create/brain-control-plane`
-- deployed control-plane commit: `800090dc56c1aa33c392d58c352d36b05ccca98c`
+- runtime baseline control-plane commit: `800090dc56c1aa33c392d58c352d36b05ccca98c`
 - GitHub Vercel status: `success`
 - Vercel deployment target reference: `D8J6MREB12uopsRFQ4AJm9P1wJv1`
 - Vercel deployment target: `https://vercel.com/harbourview/thebrain/D8J6MREB12uopsRFQ4AJm9P1wJv1`
 - production URL: `https://thebrain-sandy.vercel.app`
 
-A second Vercel project, `harbourviewcompany-create-brain-control-plane`, also reported a successful deployment for the same control-plane commit with target reference `8PeVc4qHKTuwDMACM7E6bpStBzks`. It is not the canonical production authority described by this document.
+A second Vercel project, `harbourviewcompany-create-brain-control-plane`, also reported a successful deployment for the same control-plane runtime baseline commit with target reference `8PeVc4qHKTuwDMACM7E6bpStBzks`. It is not the canonical production authority described by this document.
 
 ## Deployment boundary
 
@@ -158,4 +158,4 @@ For a production wiring change, verify at minimum:
 
 Repository ownership is structural, not inferred from file names. Vercel-related verifier code that executes inside Railway remains Brain backend code; Vercel token acquisition and forwarding remain control-plane BFF code.
 
-When this deployment snapshot becomes stale, update this document in `harbourviewcompany-create/brain-control-plane`. Do not recreate a control-plane wiring guide in the Brain repository.
+When this deployment snapshot becomes stale because runtime behavior changes, update this document in `harbourviewcompany-create/brain-control-plane`. Do not recreate a control-plane wiring guide in the Brain repository.
