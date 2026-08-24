@@ -1,22 +1,20 @@
 # brain-control-plane
 
-Brain Control Plane — operator UI for the Brain cognitive runtime (Next.js).
+Brain Control Plane — operator UI and server-side BFF for the Brain cognitive runtime (Next.js).
 
 Production: https://thebrain-sandy.vercel.app
 
-## Security model (BFF)
+## Production wiring authority
 
-The browser talks **only** to same-origin `/api/brain/*`.
+The canonical Brain ↔ control-plane production ownership, authentication, environment, deployment and verification record is [`docs/PRODUCTION_WIRING.md`](docs/PRODUCTION_WIRING.md).
 
-Next.js route handlers proxy to the Railway Brain API and attach `X-Brain-Api-Key` from **server-only** env:
+## Security model
 
-| Variable | Scope | Purpose |
-|----------|--------|--------|
-| `BRAIN_API_URL` | Server | Upstream base (no trailing slash) |
-| `BRAIN_API_KEY` | Server | Optional until Railway is keyed |
-| `NEXT_PUBLIC_OPERATOR_ID` | Public | Operator label only |
+The browser talks only to same-origin `/api/brain/*` and receives no upstream credential.
 
-**Do not** set `NEXT_PUBLIC_BRAIN_API_KEY`. That would put the secret in the client bundle.
+Vercel deployment OIDC is the primary server-to-server authentication path. The BFF obtains its signed deployment identity at runtime and forwards it to the Railway Brain API. Railway verifies the exact production identity before translating it internally to its locally stored Brain API credential.
+
+`BRAIN_API_KEY` remains an optional server-only fallback for the BFF. `BRAIN_API_URL` is also server-side and points to the Railway runtime.
 
 Default upstream if `BRAIN_API_URL` is unset: `https://brain-api-live-production.up.railway.app`.
 
@@ -30,6 +28,7 @@ npm run dev
 
 ## Vercel
 
-1. Set `BRAIN_API_URL` (and `BRAIN_API_KEY` after Railway promote).
-2. Redeploy.
-3. Confirm TopBar shows **API live** and base ` /api/brain `.
+1. Set `BRAIN_API_URL` to the production Railway runtime.
+2. Configure `BRAIN_API_KEY` only when the server-only fallback path is intentionally required.
+3. Redeploy.
+4. Confirm the TopBar reports the API live and the browser continues to use `/api/brain`.
