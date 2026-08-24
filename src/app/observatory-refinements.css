@@ -1,11 +1,11 @@
 /* Final responsive composition corrections from rendered Observatory evidence. */
 
 @media (max-width: 760px) {
-  /* Keep the semantic quiet-state annotation out of the organism core. */
+  /* Keep the semantic quiet-state marker clear of the organism phase readout. */
   .cognitive-field__quiet-state {
     left: 12px;
-    top: 57%;
-    width: 150px;
+    top: 52%;
+    width: 120px;
     transform: none;
     text-align: left;
   }
@@ -16,14 +16,9 @@
     letter-spacing: .14em;
   }
 
-  .cognitive-field__quiet-state strong {
-    display: none;
-  }
-
+  .cognitive-field__quiet-state strong,
   .cognitive-field__quiet-state em {
-    margin-top: 5px;
-    font-size: 7px;
-    line-height: 1.35;
+    display: none;
   }
 
   .field-readout--right {
