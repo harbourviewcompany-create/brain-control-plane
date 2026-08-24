@@ -77,6 +77,7 @@ jobs:
           (async () => {
             const browser = await chromium.launch({ headless: true });
             const reports = [];
+            const failures = [];
             for (const spec of [
               { name: 'desktop', width: 1440, height: 1000 },
               { name: 'mobile', width: 390, height: 844 },
@@ -91,48 +92,51 @@ jobs:
                 if (response.status() >= 500) serverErrors.push(`${response.status()} ${response.url()}`);
               });
               const response = await page.goto('https://thebrain-sandy.vercel.app/', { waitUntil: 'domcontentloaded', timeout: 60000 });
-              if (!response || response.status() !== 200) throw new Error(`${spec.name} root status ${response?.status()}`);
+              if (!response || response.status() !== 200) failures.push(`${spec.name}: root status ${response?.status()}`);
               await page.waitForTimeout(12000);
               const bodyText = await page.locator('body').innerText();
+              const title = await page.title();
               const canvasCount = await page.locator('canvas').count();
               const dimensions = await page.evaluate(() => ({
                 innerWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 scrollHeight: document.documentElement.scrollHeight,
               }));
-              if (!/Brain Observatory/i.test(bodyText)) throw new Error(`${spec.name}: Brain Observatory title missing`);
-              if (!/HEALTHY/i.test(bodyText)) throw new Error(`${spec.name}: HEALTHY state missing`);
-              if (!/LIVE/i.test(bodyText)) throw new Error(`${spec.name}: LIVE state missing`);
-              if (/\[object Object\]/.test(bodyText)) throw new Error(`${spec.name}: [object Object] regression visible`);
-              if (/\bDEGRADED\b/i.test(bodyText)) throw new Error(`${spec.name}: unexpected DEGRADED status`);
-              if (canvasCount < 1) throw new Error(`${spec.name}: cognitive canvas missing`);
-              if (spec.name === 'mobile' && dimensions.scrollWidth > dimensions.innerWidth + 2) {
-                throw new Error(`mobile horizontal overflow ${dimensions.scrollWidth} > ${dimensions.innerWidth}`);
-              }
               await page.screenshot({ path: `evidence/production-${spec.name}.png`, fullPage: true });
-              reports.push({
+              const report = {
                 ...spec,
+                title,
                 canvasCount,
                 dimensions,
                 consoleErrors,
                 pageErrors,
                 serverErrors,
-                textSample: bodyText.slice(0, 1800),
-              });
+                textSample: bodyText.slice(0, 2400),
+              };
+              reports.push(report);
+              if (!/Brain Observatory/i.test(title)) failures.push(`${spec.name}: document title is ${JSON.stringify(title)}`);
+              if (!/HEALTHY/i.test(bodyText)) failures.push(`${spec.name}: HEALTHY state missing`);
+              if (!/LIVE/i.test(bodyText)) failures.push(`${spec.name}: LIVE state missing`);
+              if (/\[object Object\]/.test(bodyText)) failures.push(`${spec.name}: [object Object] regression visible`);
+              if (/\bDEGRADED\b/i.test(bodyText)) failures.push(`${spec.name}: unexpected DEGRADED status`);
+              if (canvasCount < 1) failures.push(`${spec.name}: cognitive canvas missing`);
+              if (spec.name === 'mobile' && dimensions.scrollWidth > dimensions.innerWidth + 2) {
+                failures.push(`mobile horizontal overflow ${dimensions.scrollWidth} > ${dimensions.innerWidth}`);
+              }
+              if (consoleErrors.length || pageErrors.length || serverErrors.length) {
+                failures.push(`${spec.name} browser/runtime errors: ${JSON.stringify({ consoleErrors, pageErrors, serverErrors })}`);
+              }
               await page.close();
             }
             await browser.close();
-            fs.writeFileSync('evidence/production-audit.json', JSON.stringify(reports, null, 2));
-            for (const report of reports) {
-              if (report.consoleErrors.length || report.pageErrors.length || report.serverErrors.length) {
-                throw new Error(`${report.name} browser/runtime errors: ${JSON.stringify({ consoleErrors: report.consoleErrors, pageErrors: report.pageErrors, serverErrors: report.serverErrors })}`);
-              }
-            }
-            console.log(JSON.stringify(reports, null, 2));
+            fs.writeFileSync('evidence/production-audit.json', JSON.stringify({ reports, failures }, null, 2));
+            console.log(JSON.stringify({ reports, failures }, null, 2));
+            if (failures.length) throw new Error(`production audit failures: ${JSON.stringify(failures)}`);
           })().catch(error => { console.error(error); process.exit(1); });
           NODE
 
       - name: Upload audit evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: postdeploy-observatory-audit
