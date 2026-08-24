@@ -2,22 +2,29 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
-import type { CognitiveScene, SceneEdge, SceneKind, SceneNode } from "@/types/observatory";
+import type { CognitiveScene, SceneEdge, SceneKind, SceneNode, SceneZone } from "@/types/observatory";
 
 const COLORS: Record<SceneKind, string> = {
-  organism: "#f4f7fb",
-  signal: "#3f8cff",
-  belief: "#9b7bff",
-  prediction: "#55d6ff",
-  outcome: "#45d99a",
-  contradiction: "#ff675d",
-  curiosity: "#f2b95e",
-  source: "#92a4b8",
-  approval: "#f0d27a",
-  opportunity: "#72dfc8",
-  agency: "#b7c7ff",
-  quarantine: "#ff755f",
+  organism: "#eef4fb",
+  signal: "#4d9cff",
+  belief: "#a98cff",
+  prediction: "#5bddff",
+  outcome: "#58dfa8",
+  contradiction: "#ff7066",
+  curiosity: "#f5bd63",
+  source: "#91a6bd",
+  approval: "#f3d782",
+  opportunity: "#76e1ca",
+  agency: "#b9caff",
+  quarantine: "#ff7a68",
+  goal: "#75c8ff",
+  debate: "#ff8f82",
+  idea: "#d79cff",
+  dream: "#8ea7ff",
+  development: "#68d6bb",
 };
+
+const DIAGNOSTIC = "#68798e";
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const r = Math.min(radius, width / 2, height / 2);
@@ -45,18 +52,47 @@ function drawPolygon(ctx: CanvasRenderingContext2D, x: number, y: number, radius
 function edgePath(ctx: CanvasRenderingContext2D, source: { x: number; y: number }, target: { x: number; y: number }, tension: boolean) {
   const dx = target.x - source.x;
   const dy = target.y - source.y;
-  const bend = tension ? 0.18 : 0.08;
+  const bend = tension ? 0.18 : 0.07;
   const cx = (source.x + target.x) / 2 - dy * bend;
   const cy = (source.y + target.y) / 2 + dx * bend;
   ctx.beginPath();
   ctx.moveTo(source.x, source.y);
   ctx.quadraticCurveTo(cx, cy, target.x, target.y);
+  return { x: cx, y: cy };
 }
 
 function nodePulse(node: SceneNode): number {
+  if (node.layer === "diagnostic") return 0;
   if (node.kind !== "signal" && node.kind !== "contradiction") return 0;
   const metric = node.metrics.find((item) => item.label === (node.kind === "signal" ? "urgency" : "pressure"));
   return Math.max(0, Math.min(1, Number(metric?.value ?? 0)));
+}
+
+function zonePosition(zone: SceneZone["id"], mobile: boolean) {
+  if (mobile) {
+    return {
+      perception: [0.045, 0.43],
+      belief: [0.34, 0.29],
+      curiosity: [0.34, 0.08],
+      prediction: [0.72, 0.43],
+      learning: [0.61, 0.7],
+      agency: [0.39, 0.76],
+      diagnostic: [0.04, 0.86],
+    }[zone] as [number, number];
+  }
+  return {
+    perception: [0.16, 0.16],
+    belief: [0.37, 0.23],
+    curiosity: [0.42, 0.065],
+    prediction: [0.76, 0.16],
+    learning: [0.72, 0.79],
+    agency: [0.46, 0.86],
+    diagnostic: [0.11, 0.795],
+  }[zone] as [number, number];
+}
+
+function nodeColor(node: SceneNode): string {
+  return node.layer === "diagnostic" ? DIAGNOSTIC : COLORS[node.kind];
 }
 
 export function CognitiveField({
@@ -71,6 +107,7 @@ export function CognitiveField({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nodeMap = useMemo(() => new Map(scene.nodes.map((node) => [node.id, node])), [scene.nodes]);
+  const animationKey = `${scene.activity}:${scene.nodes.length}:${scene.edges.length}:${scene.organism.stress}:${scene.organism.dominantGoalPressure}`;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,47 +137,133 @@ export function CognitiveField({
     };
 
     const point = (node: SceneNode) => ({ x: node.x * width, y: node.y * height });
+    const center = () => ({ x: width * 0.5, y: height * 0.49 });
 
-    const drawZones = () => {
-      const center = { x: width * 0.47, y: height * 0.5 };
+    const drawReferenceField = () => {
+      const c = center();
+      const min = Math.min(width, height);
       ctx.save();
+
+      const fieldGradient = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, min * 0.43);
+      fieldGradient.addColorStop(0, "rgba(55, 68, 92, .19)");
+      fieldGradient.addColorStop(0.42, "rgba(25, 34, 50, .10)");
+      fieldGradient.addColorStop(1, "rgba(4, 8, 14, 0)");
+      ctx.fillStyle = fieldGradient;
+      ctx.fillRect(0, 0, width, height);
+
       ctx.lineWidth = 1;
-      [0.13, 0.205, 0.29].forEach((radiusFactor, index) => {
-        const radius = Math.min(width, height) * radiusFactor;
-        ctx.strokeStyle = `rgba(137, 156, 180, ${0.09 - index * 0.015})`;
+      [0.12, 0.195, 0.285].forEach((radiusFactor, index) => {
+        const radius = min * radiusFactor;
+        ctx.strokeStyle = `rgba(142, 165, 192, ${0.105 - index * 0.022})`;
+        ctx.setLineDash(index === 2 ? [2, 8] : []);
         ctx.beginPath();
-        ctx.ellipse(center.x, center.y, radius * 1.18, radius, 0, 0, Math.PI * 2);
+        ctx.ellipse(c.x, c.y, radius * 1.17, radius, 0, 0, Math.PI * 2);
         ctx.stroke();
       });
+      ctx.setLineDash([]);
 
-      const memoryAlpha = 0.035 + scene.memoryPressure * 0.08;
-      const wmAlpha = 0.035 + Math.min(0.1, scene.workingMemorySize * 0.012);
-      ctx.strokeStyle = `rgba(155, 123, 255, ${memoryAlpha})`;
-      ctx.lineWidth = 6 + scene.memoryPressure * 12;
+      // The central organism reads as a pressure instrument, not a decorative target.
+      const pressureEntries = Object.entries(scene.organism.pressures);
+      pressureEntries.forEach(([key, value], index) => {
+        const angle = -Math.PI / 2 + (index / pressureEntries.length) * Math.PI * 2;
+        const inner = min * 0.055;
+        const outer = inner + min * (0.035 + value * 0.045);
+        const x1 = c.x + Math.cos(angle) * inner;
+        const y1 = c.y + Math.sin(angle) * inner;
+        const x2 = c.x + Math.cos(angle) * outer;
+        const y2 = c.y + Math.sin(angle) * outer;
+        ctx.strokeStyle = value > 0.65 ? "rgba(255,112,102,.65)" : value > 0.35 ? "rgba(245,189,99,.50)" : "rgba(139,164,194,.24)";
+        ctx.lineWidth = 1 + value * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        if (!isMobile && value > 0.05) {
+          ctx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+          ctx.fillStyle = "rgba(150,170,193,.58)";
+          ctx.textAlign = "center";
+          ctx.fillText(key.toUpperCase(), c.x + Math.cos(angle) * (outer + 16), c.y + Math.sin(angle) * (outer + 16));
+        }
+      });
+
+      const memoryAlpha = 0.04 + scene.memoryPressure * 0.14;
+      ctx.strokeStyle = `rgba(169, 140, 255, ${memoryAlpha})`;
+      ctx.lineWidth = 3 + scene.memoryPressure * 10;
       ctx.beginPath();
-      ctx.ellipse(center.x, center.y, Math.min(width, height) * 0.2, Math.min(width, height) * 0.155, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = `rgba(244, 247, 251, ${wmAlpha})`;
-      ctx.lineWidth = 2 + Math.min(10, scene.workingMemorySize);
-      ctx.beginPath();
-      ctx.ellipse(center.x, center.y, Math.min(width, height) * 0.105, Math.min(width, height) * 0.082, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x, c.y, min * 0.155, min * 0.115, 0, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.font = `${isMobile ? 9 : 10}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-      ctx.fillStyle = "rgba(160, 177, 198, .48)";
-      ctx.textBaseline = "middle";
-      const labels = isMobile
-        ? [["PERCEPTION", 0.04, 0.5], ["FUTURE", 0.83, 0.5], ["MEMORY", 0.43, 0.71]]
-        : [
-            ["SOURCE PERIMETER", 0.035, 0.5],
-            ["PERCEPTION RIM", 0.17, 0.22],
-            ["CURIOSITY FRONTIER", 0.42, 0.055],
-            ["BELIEF LATTICE", 0.405, 0.28],
-            ["PREDICTION HORIZON", 0.79, 0.17],
-            ["OUTCOME RETURN", 0.75, 0.91],
-            ["AGENCY GATE", 0.48, 0.955],
-          ];
-      labels.forEach(([label, x, y]) => ctx.fillText(String(label), Number(x) * width, Number(y) * height));
+      const wm = Math.min(1, scene.workingMemorySize / 7);
+      ctx.strokeStyle = `rgba(238,244,251,${0.1 + wm * 0.2})`;
+      ctx.lineWidth = 1.5 + wm * 5;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, min * 0.073, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.08, wm));
+      ctx.stroke();
+
+      const goalPressure = scene.organism.dominantGoalPressure;
+      if (scene.organism.dominantGoal) {
+        ctx.strokeStyle = `rgba(117,200,255,${0.2 + goalPressure * 0.5})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, min * 0.095, Math.PI * 1.05, Math.PI * (1.05 + 0.9 * Math.max(0.08, goalPressure)));
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    };
+
+    const drawZones = () => {
+      ctx.save();
+      ctx.textBaseline = "top";
+      scene.zones.forEach((zone) => {
+        const [x, y] = zonePosition(zone.id, isMobile);
+        const active = zone.count > 0;
+        const stateColor = zone.id === "diagnostic"
+          ? "rgba(113,132,154,.68)"
+          : active
+            ? "rgba(176,197,220,.72)"
+            : "rgba(116,137,161,.55)";
+        ctx.fillStyle = stateColor;
+        ctx.font = `${isMobile ? 8 : 9}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.letterSpacing = "0px";
+        ctx.fillText(`${zone.label}  ${zone.count} · ${zone.state.toUpperCase()}`, x * width, y * height);
+        if (!isMobile && !active && zone.id !== "diagnostic") {
+          ctx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+          ctx.fillStyle = "rgba(97,116,138,.42)";
+          const short = zone.detail.length > 54 ? `${zone.detail.slice(0, 53)}…` : zone.detail;
+          ctx.fillText(short, x * width, y * height + 15);
+        }
+      });
+      ctx.restore();
+    };
+
+    const drawCoreText = () => {
+      const c = center();
+      const phase = scene.organism.phase ? scene.organism.phase.replaceAll("_", " ").toUpperCase() : "SELF STATE NOT SNAPSHOTTED";
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.font = `${isMobile ? 8 : 9}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.fillStyle = "rgba(206,218,231,.72)";
+      ctx.fillText(phase, c.x, c.y + (isMobile ? 64 : 74));
+      if (scene.organism.dominantGoal) {
+        ctx.fillStyle = "rgba(117,200,255,.72)";
+        ctx.fillText(`GOAL ${scene.organism.dominantGoal.replaceAll("_", " ").toUpperCase()} · ${scene.organism.dominantGoalPressure.toFixed(2)}`, c.x, c.y + (isMobile ? 77 : 89));
+      }
+      ctx.restore();
+    };
+
+    const drawArrow = (from: { x: number; y: number }, to: { x: number; y: number }, color: string, alpha: number) => {
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const size = 5;
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(to.x - Math.cos(angle - 0.55) * size, to.y - Math.sin(angle - 0.55) * size);
+      ctx.lineTo(to.x - Math.cos(angle + 0.55) * size, to.y - Math.sin(angle + 0.55) * size);
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     };
 
@@ -150,117 +273,185 @@ export function CognitiveField({
       if (!sourceNode || !targetNode) return;
       const source = point(sourceNode);
       const target = point(targetNode);
+      const diagnostic = sourceNode.layer === "diagnostic" || targetNode.layer === "diagnostic";
+      const color = edge.tension ? "#ff7066" : diagnostic ? DIAGNOSTIC : "#8fa9c8";
+      const alpha = diagnostic ? 0.16 : 0.16 + edge.strength * 0.28;
       ctx.save();
-      ctx.lineWidth = edge.tension ? 1.4 + edge.strength : 0.55 + edge.strength * 1.05;
-      ctx.strokeStyle = edge.tension
-        ? `rgba(255, 103, 93, ${0.24 + edge.strength * 0.4})`
-        : `rgba(132, 158, 190, ${0.08 + edge.strength * 0.22})`;
+      ctx.lineWidth = edge.tension ? 1.4 + edge.strength : 0.7 + edge.strength * 1.1;
+      ctx.strokeStyle = edge.tension ? `rgba(255,112,102,${0.28 + edge.strength * 0.45})` : diagnostic ? "rgba(104,121,142,.20)" : `rgba(143,169,200,${alpha})`;
       if (edge.tension) {
         ctx.setLineDash([5, 6]);
         ctx.lineDashOffset = animate ? -(time / 90) % 22 : 0;
       }
-      edgePath(ctx, source, target, Boolean(edge.tension));
+      const control = edgePath(ctx, source, target, Boolean(edge.tension));
       ctx.stroke();
+      drawArrow(control, target, color, Math.min(0.7, alpha + 0.2));
+      if (!isMobile && !diagnostic) {
+        ctx.setLineDash([]);
+        ctx.font = "8px ui-monospace, SFMono-Regular, Menlo, monospace";
+        ctx.fillStyle = edge.tension ? "rgba(255,142,132,.72)" : "rgba(132,154,179,.56)";
+        ctx.fillText(edge.relation.toUpperCase(), control.x + 5, control.y + 4);
+      }
       ctx.restore();
+    };
+
+    const drawSignal = (ctx2: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string, diagnostic: boolean) => {
+      if (diagnostic) {
+        roundedRect(ctx2, x - radius * 0.7, y - radius * 0.7, radius * 1.4, radius * 1.4, 2);
+        ctx2.stroke();
+        ctx2.setLineDash([2, 3]);
+        ctx2.beginPath();
+        ctx2.arc(x, y, radius * 1.35, 0, Math.PI * 2);
+        ctx2.stroke();
+        ctx2.setLineDash([]);
+        return;
+      }
+      ctx2.beginPath();
+      ctx2.arc(x, y, radius * 0.48, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.stroke();
+      [0.82, 1.18].forEach((scale) => {
+        ctx2.beginPath();
+        ctx2.arc(x, y, radius * scale, -Math.PI * 0.62, Math.PI * 0.62);
+        ctx2.stroke();
+      });
+      ctx2.strokeStyle = color;
     };
 
     const drawNode = (node: SceneNode, time: number) => {
       const { x, y } = point(node);
-      const color = COLORS[node.kind];
+      const color = nodeColor(node);
       const pulse = nodePulse(node);
       const phase = pulse > 0 && animate ? (Math.sin(time / (620 - pulse * 300)) + 1) / 2 : 0;
       const radius = node.size + phase * pulse * 4;
       const selected = node.id === selectedId;
+      const diagnostic = node.layer === "diagnostic";
 
       ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      if (node.importance > 0.58 || selected) {
-        const haloRadius = radius * (2.1 + node.importance * 0.75);
+      ctx.globalAlpha = diagnostic ? 0.72 : 1;
+      if ((node.importance > 0.58 || selected) && !diagnostic) {
+        ctx.globalCompositeOperation = "lighter";
+        const haloRadius = radius * (2 + node.importance * 0.7);
         const gradient = ctx.createRadialGradient(x, y, radius * 0.2, x, y, haloRadius);
-        gradient.addColorStop(0, `${color}${selected ? "55" : "2f"}`);
+        gradient.addColorStop(0, `${color}${selected ? "52" : "26"}`);
         gradient.addColorStop(1, `${color}00`);
         ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(x, y, haloRadius, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalCompositeOperation = "source-over";
       }
-      ctx.globalCompositeOperation = "source-over";
+
       ctx.strokeStyle = color;
-      ctx.fillStyle = `${color}${selected ? "38" : "18"}`;
-      ctx.lineWidth = selected ? 2.2 : 1.15;
+      ctx.fillStyle = `${color}${selected ? "36" : diagnostic ? "08" : "16"}`;
+      ctx.lineWidth = selected ? 2.2 : diagnostic ? 0.9 : 1.2;
       ctx.shadowColor = selected ? color : "transparent";
       ctx.shadowBlur = selected ? 16 : 0;
 
-      if (node.kind === "belief") {
-        drawPolygon(ctx, x, y, radius, 6);
-      } else if (node.kind === "prediction") {
-        drawPolygon(ctx, x, y, radius, 4, 0);
-      } else if (node.kind === "contradiction" || node.kind === "quarantine") {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x - radius * 0.55, y - radius * 0.55);
-        ctx.lineTo(x + radius * 0.55, y + radius * 0.55);
-        ctx.moveTo(x + radius * 0.55, y - radius * 0.55);
-        ctx.lineTo(x - radius * 0.55, y + radius * 0.55);
-        ctx.stroke();
-        ctx.restore();
-        return;
-      } else if (node.kind === "source") {
-        roundedRect(ctx, x - radius, y - radius, radius * 2, radius * 2, 3);
-      } else if (node.kind === "curiosity") {
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(x, y, radius, -Math.PI * 0.2, Math.PI * 1.45);
-      } else if (node.kind === "organism") {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.globalAlpha = 0.45;
-        ctx.beginPath();
-        ctx.arc(x, y, radius * 0.53, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-        return;
-      } else {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
+      switch (node.kind) {
+        case "signal":
+          drawSignal(ctx, x, y, radius, color, diagnostic);
+          break;
+        case "belief":
+          drawPolygon(ctx, x, y, radius, 6);
+          ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, radius * 0.36, 0, Math.PI * 2); ctx.stroke();
+          break;
+        case "prediction":
+          drawPolygon(ctx, x, y, radius, 4, 0);
+          ctx.fill(); ctx.stroke();
+          if (!diagnostic) {
+            ctx.beginPath(); ctx.moveTo(x + radius, y); ctx.lineTo(x + radius * 2.2, y); ctx.stroke();
+          }
+          break;
+        case "outcome":
+          ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, radius * 1.45, Math.PI * 0.2, Math.PI * 1.1); ctx.stroke();
+          break;
+        case "contradiction":
+          ctx.beginPath(); ctx.arc(x - radius * 0.22, y, radius * 0.72, -1.1, 1.1); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x + radius * 0.22, y, radius * 0.72, Math.PI - 1.1, Math.PI + 1.1); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x - radius * 0.55, y - radius * 0.55); ctx.lineTo(x + radius * 0.55, y + radius * 0.55); ctx.stroke();
+          break;
+        case "curiosity":
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.arc(x, y, radius, -Math.PI * 0.15, Math.PI * 1.45); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(x + radius * 0.72, y - radius * 0.48, 2.2, 0, Math.PI * 2); ctx.fill();
+          break;
+        case "source":
+          ctx.beginPath();
+          ctx.moveTo(x + radius * 0.6, y - radius); ctx.lineTo(x - radius, y - radius); ctx.lineTo(x - radius, y + radius); ctx.lineTo(x + radius * 0.6, y + radius);
+          ctx.stroke();
+          break;
+        case "approval":
+          ctx.beginPath(); ctx.moveTo(x - radius * 0.65, y - radius); ctx.lineTo(x - radius * 0.65, y + radius); ctx.moveTo(x + radius * 0.65, y - radius); ctx.lineTo(x + radius * 0.65, y + radius); ctx.stroke();
+          break;
+        case "agency":
+          ctx.beginPath(); ctx.moveTo(x - radius, y - radius * 0.7); ctx.lineTo(x, y); ctx.lineTo(x - radius, y + radius * 0.7); ctx.moveTo(x, y); ctx.lineTo(x + radius, y); ctx.stroke();
+          break;
+        case "goal":
+          drawPolygon(ctx, x, y, radius, 3, -Math.PI / 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(x, y, radius * 0.28, 0, Math.PI * 2); ctx.fill();
+          break;
+        case "debate":
+          ctx.beginPath(); ctx.moveTo(x - radius, y - radius); ctx.lineTo(x - radius * 0.35, y); ctx.lineTo(x - radius, y + radius); ctx.moveTo(x + radius, y - radius); ctx.lineTo(x + radius * 0.35, y); ctx.lineTo(x + radius, y + radius); ctx.stroke();
+          break;
+        case "idea":
+          for (let index = 0; index < 6; index += 1) {
+            const angle = index / 6 * Math.PI * 2;
+            ctx.beginPath(); ctx.moveTo(x + Math.cos(angle) * radius * 0.35, y + Math.sin(angle) * radius * 0.35); ctx.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius); ctx.stroke();
+          }
+          ctx.beginPath(); ctx.arc(x, y, radius * 0.32, 0, Math.PI * 2); ctx.fill();
+          break;
+        case "dream":
+          ctx.beginPath(); ctx.arc(x, y, radius, -Math.PI / 2, Math.PI / 2); ctx.arc(x + radius * 0.38, y, radius * 0.82, Math.PI / 2, -Math.PI / 2, true); ctx.stroke();
+          break;
+        case "development":
+          ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x - radius * 0.45, y); ctx.lineTo(x - radius * 0.08, y + radius * 0.34); ctx.lineTo(x + radius * 0.52, y - radius * 0.42); ctx.stroke();
+          break;
+        case "quarantine":
+          drawPolygon(ctx, x, y, radius, 8); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x - radius * 0.48, y - radius * 0.48); ctx.lineTo(x + radius * 0.48, y + radius * 0.48); ctx.moveTo(x + radius * 0.48, y - radius * 0.48); ctx.lineTo(x - radius * 0.48, y + radius * 0.48); ctx.stroke();
+          break;
+        case "opportunity":
+          roundedRect(ctx, x - radius, y - radius * 0.7, radius * 2, radius * 1.4, radius * 0.25); ctx.fill(); ctx.stroke();
+          break;
+        case "organism":
+          ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.globalAlpha *= 0.55;
+          ctx.beginPath(); ctx.arc(x, y, radius * 0.54, 0, Math.PI * 2); ctx.stroke();
+          break;
       }
-      ctx.fill();
-      ctx.stroke();
       ctx.restore();
     };
 
     const drawLabels = () => {
-      if (isMobile) return;
       ctx.save();
-      ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
       ctx.textBaseline = "top";
       scene.nodes.forEach((node) => {
-        if (node.importance < 0.72 && node.id !== selectedId) return;
+        const selected = node.id === selectedId;
+        if (node.layer === "diagnostic" && !selected) return;
+        if (isMobile && !selected && node.kind !== "organism" && node.kind !== "goal") return;
+        if (!selected && node.importance < 0.68) return;
         const { x, y } = point(node);
-        const max = 32;
+        const max = isMobile ? 20 : 38;
         const label = node.label.length > max ? `${node.label.slice(0, max - 1)}…` : node.label;
-        ctx.fillStyle = node.id === selectedId ? "rgba(245,248,252,.95)" : "rgba(196,209,224,.65)";
-        ctx.fillText(label, x + node.size + 7, y - 5);
+        ctx.font = `${isMobile ? 8 : 10}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.fillStyle = selected ? "rgba(245,248,252,.96)" : "rgba(202,216,232,.72)";
+        ctx.fillText(label, x + node.size + 8, y - 5);
       });
       ctx.restore();
     };
 
     const draw = (time = 0) => {
       ctx.clearRect(0, 0, width, height);
-      const gradient = ctx.createRadialGradient(width * 0.47, height * 0.5, 0, width * 0.47, height * 0.5, Math.max(width, height) * 0.7);
-      gradient.addColorStop(0, "rgba(24, 29, 41, .72)");
-      gradient.addColorStop(0.45, "rgba(10, 14, 21, .35)");
-      gradient.addColorStop(1, "rgba(4, 7, 11, 0)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+      drawReferenceField();
       drawZones();
       scene.edges.forEach((edge) => drawEdge(edge, time));
       scene.nodes.forEach((node) => drawNode(node, time));
+      drawCoreText();
       drawLabels();
       if (animate) frame = requestAnimationFrame(draw);
     };
@@ -277,7 +468,9 @@ export function CognitiveField({
       observer.disconnect();
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [animateKey(scene), nodeMap, scene, selectedId]);
+  }, [animationKey, nodeMap, scene, selectedId]);
+
+  const quiet = scene.cognitiveCount === 0;
 
   return (
     <div className="cognitive-field" ref={containerRef}>
@@ -290,17 +483,17 @@ export function CognitiveField({
             top: `${node.y * 100}%`,
             width: `${hitSize}px`,
             height: `${hitSize}px`,
-            "--node-color": COLORS[node.kind],
+            "--node-color": nodeColor(node),
           } as CSSProperties;
           return (
             <button
               type="button"
               key={node.id}
-              className={`cognitive-field__target ${node.id === selectedId ? "is-selected" : ""}`}
+              className={`cognitive-field__target layer-${node.layer} ${node.id === selectedId ? "is-selected" : ""}`}
               style={style}
               onClick={() => onSelect(node.id)}
               aria-pressed={node.id === selectedId}
-              aria-label={`${node.kind}: ${node.label}`}
+              aria-label={`${node.layer === "diagnostic" ? "diagnostic " : ""}${node.kind}: ${node.label}`}
               title={`${node.kind}: ${node.label}`}
             >
               <span className="sr-only">{node.summary}</span>
@@ -308,16 +501,14 @@ export function CognitiveField({
           );
         })}
       </div>
-      {scene.nodes.length <= 1 && (
-        <div className="cognitive-field__dormant" role="status">
-          <span>FIELD QUIET</span>
-          <strong>Brain is connected, but no cognitive objects are currently exposed by the live read models.</strong>
+
+      {quiet ? (
+        <div className="cognitive-field__quiet-state" role="status">
+          <span>COGNITIVE FIELD QUIET</span>
+          <strong>No non-diagnostic cognitive objects are currently active in the exposed read models.</strong>
+          {scene.diagnosticCount ? <em>{scene.diagnosticCount} operational record{scene.diagnosticCount === 1 ? " is" : "s are"} isolated in the diagnostic channel.</em> : null}
         </div>
-      )}
+      ) : null}
     </div>
   );
-}
-
-function animateKey(scene: CognitiveScene) {
-  return `${scene.activity}:${scene.nodes.length}:${scene.edges.length}`;
 }
