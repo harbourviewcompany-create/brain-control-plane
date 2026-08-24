@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./observatory-refinements.css";
 import { RouteFrame } from "@/components/RouteFrame";
 
 export const metadata: Metadata = {
