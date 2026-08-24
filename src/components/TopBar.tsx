@@ -29,7 +29,13 @@ export function TopBar() {
       });
   }, []);
 
-  const status = live ? "API live" : isApiConfigured() ? (checked ? "API unreachable" : "checking API") : "API not configured";
+  const status = live
+    ? "API live"
+    : isApiConfigured()
+      ? checked
+        ? "API unreachable"
+        : "checking API"
+      : "API not configured";
 
   return (
     <header className="flex h-11 shrink-0 items-center justify-between border-b border-cockpit-border bg-cockpit-panel px-3">
@@ -44,8 +50,8 @@ export function TopBar() {
         >
           {status}
         </span>
-        <span className="hidden max-w-[220px] truncate font-mono text-[10px] text-cockpit-muted sm:inline">
-          {apiBase()}
+        <span className="hidden max-w-[280px] truncate font-mono text-[10px] text-cockpit-muted sm:inline">
+          {apiBase()} → upstream (server)
         </span>
       </div>
       <div className="flex items-center gap-4 text-[11px] text-cockpit-muted">

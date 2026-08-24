@@ -1,12 +1,8 @@
 /**
- * Brain Runtime API client.
+ * Brain Runtime API client (browser-safe).
  *
- * Production wiring:
- *   NEXT_PUBLIC_BRAIN_API_URL  — no trailing slash
- *   NEXT_PUBLIC_BRAIN_API_KEY  — required once Railway runs keyed main (v0.8+)
- *
- * With no / deprecated base URL, falls back to the live Railway host so the
- * cockpit stays wired without a Vercel env deploy.
+ * All calls go to same-origin /api/brain/* which proxies to Railway and
+ * attaches BRAIN_API_KEY on the server. The browser never sees the upstream secret.
  */
 
 import type {
@@ -31,43 +27,23 @@ import type {
   OrganismPersistenceStatus,
 } from "@/types/brain";
 
-const LIVE_RAILWAY_BASE = "https://brain-api-live-production.up.railway.app";
-const DEPRECATED_RAILWAY_BASES = new Set([
-  "https://brain-api-docker-production.up.railway.app",
-  "https://brain-api-production-f142.up.railway.app",
-]);
-
-const CONFIGURED_BASE = (process.env.NEXT_PUBLIC_BRAIN_API_URL || "").replace(/\/$/, "");
-const BASE =
-  !CONFIGURED_BASE || DEPRECATED_RAILWAY_BASES.has(CONFIGURED_BASE)
-    ? LIVE_RAILWAY_BASE
-    : CONFIGURED_BASE;
-const API_KEY = process.env.NEXT_PUBLIC_BRAIN_API_KEY || "";
+/** Same-origin BFF prefix — not the Railway host. */
+const BFF = "/api/brain";
 
 export function isApiConfigured(): boolean {
-  return Boolean(BASE);
+  return true;
 }
 
 export function apiBase(): string {
-  return BASE || "(not configured)";
-}
-
-export function apiKeyConfigured(): boolean {
-  return Boolean(API_KEY);
+  return BFF;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  if (!BASE) {
-    throw new Error("Brain API not configured (set NEXT_PUBLIC_BRAIN_API_URL)");
-  }
   const headers: Record<string, string> = {
     "content-type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
   };
-  if (API_KEY) {
-    headers["X-Brain-Api-Key"] = API_KEY;
-  }
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BFF}${path}`, {
     ...init,
     headers,
     cache: "no-store",
@@ -81,11 +57,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Soft request: returns null on 404 (route not deployed yet). */
 async function requestOptional<T>(path: string): Promise<T | null> {
-  if (!BASE) return null;
   try {
-    const headers: Record<string, string> = { "content-type": "application/json" };
-    if (API_KEY) headers["X-Brain-Api-Key"] = API_KEY;
-    const res = await fetch(`${BASE}${path}`, { headers, cache: "no-store" });
+    const res = await fetch(`${BFF}${path}`, {
+      headers: { "content-type": "application/json" },
+      cache: "no-store",
+    });
     if (res.status === 404) return null;
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -199,7 +175,7 @@ export async function listAcceptanceReports(): Promise<ListResponse<AcceptanceRe
   return request<ListResponse<AcceptanceReport>>("/acceptance-reports");
 }
 
-// --- Cognitive organism layer (Brain main / v0.8+; null when not deployed) ---
+// --- Cognitive organism layer (null when upstream lacks routes) ---
 
 export async function getOrganismCockpit(): Promise<OrganismCockpit | null> {
   return requestOptional<OrganismCockpit>("/organism/cockpit");
