@@ -1,4 +1,3 @@
-import { Panel } from "@/components/Panel";
 import { EmptyState } from "@/components/EmptyState";
 
 export default function LearningPage() {
