@@ -17,7 +17,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,3 +55,54 @@ jobs:
             organism: { keys: Object.keys(organism).sort() }
           }, null, 2));
           NODE
+      - name: Render desktop and mobile visual evidence
+        shell: bash
+        env:
+          # The local verification BFF forwards to the already-authenticated production BFF.
+          # This placeholder only satisfies the local fail-closed server boundary; it is not a production credential.
+          BRAIN_API_URL: https://thebrain-sandy.vercel.app/api/brain
+          BRAIN_API_KEY: ci-visual-evidence-proxy
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          npm run start -- -H 127.0.0.1 -p 3000 >/tmp/brain-observatory-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" >/dev/null 2>&1 || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:3000/api/brain/health >/tmp/local-health.json; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/brain-observatory-next.log
+            exit 1
+          fi
+
+          npx --yes playwright@1.55.0 install --with-deps chromium
+          npx --yes playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size="1440,1000" \
+            --wait-for-timeout=10000 \
+            http://127.0.0.1:3000 \
+            evidence/brain-observatory-desktop.png
+          npx --yes playwright@1.55.0 screenshot \
+            --browser chromium \
+            --viewport-size="390,844" \
+            --wait-for-timeout=10000 \
+            http://127.0.0.1:3000 \
+            evidence/brain-observatory-mobile.png
+
+          test -s evidence/brain-observatory-desktop.png
+          test -s evidence/brain-observatory-mobile.png
+          file evidence/*.png
+      - name: Upload visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-observatory-visual-evidence
+          path: evidence/*.png
+          if-no-files-found: error
+          retention-days: 7
