@@ -1,4 +1,4 @@
-/** Canonical Brain control-plane types aligned with brain/schemas.py */
+/** Canonical Brain control-plane types aligned with brain/schemas.py + organism layer */
 
 export type UUID = string;
 
@@ -250,12 +250,85 @@ export interface HealthResponse {
   status: string;
   version: string;
   beliefs: number;
-  events: number;
-  predictions: number;
+  events?: number;
+  predictions?: number;
+  money_lanes?: number;
+  database?: string;
+  persistence?: string;
+  heartbeat?: {
+    ticks?: number;
+    total_processed?: number;
+    inbox?: number;
+    working_memory_size?: number;
+  };
 }
 
 export interface ListResponse<T> {
   items: T[];
   next_cursor?: string | null;
   total?: number;
+}
+
+// --- Cognitive organism layer ---
+
+export interface OrganismSelfState {
+  current_focus_summary?: string;
+  belief_count?: number;
+  event_count?: number;
+  prediction_count?: number;
+  opportunity_count?: number;
+  uncertainty_load?: number;
+  contradiction_load?: number;
+  curiosity_pressure?: number;
+  revenue_pressure?: number;
+  risk_pressure?: number;
+  memory_pressure?: number;
+  action_backlog_pressure?: number;
+  [key: string]: unknown;
+}
+
+export interface OrganismCuriosityTask {
+  id?: string;
+  question?: string;
+  trigger_type?: string;
+  expected_value?: number;
+  uncertainty?: number;
+  cost?: number;
+  status?: string;
+  [key: string]: unknown;
+}
+
+export interface OrganismAgencyAction {
+  id?: string;
+  action_type?: string;
+  proposal?: string;
+  tier?: string;
+  status?: string;
+  risk_score?: number;
+  [key: string]: unknown;
+}
+
+export interface OrganismQuarantineItem {
+  id?: string;
+  item_type?: string;
+  item_ref?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+export interface OrganismCockpit {
+  self_state?: OrganismSelfState;
+  workspace?: unknown;
+  curiosity?: { items?: OrganismCuriosityTask[] } | OrganismCuriosityTask[];
+  agency?: { items?: OrganismAgencyAction[] } | OrganismAgencyAction[];
+  quarantine?: { items?: OrganismQuarantineItem[] } | OrganismQuarantineItem[];
+  goals?: unknown;
+  [key: string]: unknown;
+}
+
+export interface OrganismPersistenceStatus {
+  store?: string;
+  checkpoint_name?: string;
+  has_startup_checkpoint?: boolean;
+  autonomy_boundary?: string;
 }

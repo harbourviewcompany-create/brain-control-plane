@@ -1,8 +1,12 @@
 /**
  * Brain Runtime API client.
- * Set NEXT_PUBLIC_BRAIN_API_URL (no trailing slash).
- * Optional NEXT_PUBLIC_BRAIN_API_KEY for production API auth.
- * With no base URL, callers should show explicit not-configured state.
+ *
+ * Production wiring:
+ *   NEXT_PUBLIC_BRAIN_API_URL  — no trailing slash
+ *   NEXT_PUBLIC_BRAIN_API_KEY  — required once Railway runs keyed main (v0.8+)
+ *
+ * With no / deprecated base URL, falls back to the live Railway host so the
+ * cockpit stays wired without a Vercel env deploy.
  */
 
 import type {
@@ -19,6 +23,12 @@ import type {
   Outcome,
   AcceptanceReport,
   Source,
+  OrganismCockpit,
+  OrganismSelfState,
+  OrganismCuriosityTask,
+  OrganismAgencyAction,
+  OrganismQuarantineItem,
+  OrganismPersistenceStatus,
 } from "@/types/brain";
 
 const LIVE_RAILWAY_BASE = "https://brain-api-live-production.up.railway.app";
@@ -36,6 +46,14 @@ const API_KEY = process.env.NEXT_PUBLIC_BRAIN_API_KEY || "";
 
 export function isApiConfigured(): boolean {
   return Boolean(BASE);
+}
+
+export function apiBase(): string {
+  return BASE || "(not configured)";
+}
+
+export function apiKeyConfigured(): boolean {
+  return Boolean(API_KEY);
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -59,6 +77,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`Brain API ${res.status}: ${body || res.statusText}`);
   }
   return res.json() as Promise<T>;
+}
+
+/** Soft request: returns null on 404 (route not deployed yet). */
+async function requestOptional<T>(path: string): Promise<T | null> {
+  if (!BASE) return null;
+  try {
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    if (API_KEY) headers["X-Brain-Api-Key"] = API_KEY;
+    const res = await fetch(`${BASE}${path}`, { headers, cache: "no-store" });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Brain API ${res.status}: ${body || res.statusText}`);
+    }
+    return res.json() as Promise<T>;
+  } catch {
+    return null;
+  }
 }
 
 export async function getHealth(): Promise<HealthResponse> {
@@ -163,6 +199,31 @@ export async function listAcceptanceReports(): Promise<ListResponse<AcceptanceRe
   return request<ListResponse<AcceptanceReport>>("/acceptance-reports");
 }
 
-export function apiBase(): string {
-  return BASE || "(not configured)";
+// --- Cognitive organism layer (Brain main / v0.8+; null when not deployed) ---
+
+export async function getOrganismCockpit(): Promise<OrganismCockpit | null> {
+  return requestOptional<OrganismCockpit>("/organism/cockpit");
+}
+
+export async function getOrganismSelfState(): Promise<OrganismSelfState | null> {
+  return requestOptional<OrganismSelfState>("/organism/self-state");
+}
+
+export async function listOrganismCuriosity(): Promise<OrganismCuriosityTask[]> {
+  const data = await requestOptional<{ items: OrganismCuriosityTask[] }>("/organism/curiosity");
+  return data?.items ?? [];
+}
+
+export async function listOrganismAgencyActions(): Promise<OrganismAgencyAction[]> {
+  const data = await requestOptional<{ items: OrganismAgencyAction[] }>("/organism/agency-actions");
+  return data?.items ?? [];
+}
+
+export async function listOrganismQuarantine(): Promise<OrganismQuarantineItem[]> {
+  const data = await requestOptional<{ items: OrganismQuarantineItem[] }>("/organism/quarantine");
+  return data?.items ?? [];
+}
+
+export async function getOrganismPersistenceStatus(): Promise<OrganismPersistenceStatus | null> {
+  return requestOptional<OrganismPersistenceStatus>("/organism/persistence/status");
 }
