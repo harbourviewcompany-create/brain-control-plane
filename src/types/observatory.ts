@@ -29,12 +29,28 @@ export type SceneKind =
   | "approval"
   | "opportunity"
   | "agency"
-  | "quarantine";
+  | "quarantine"
+  | "goal"
+  | "debate"
+  | "idea"
+  | "dream"
+  | "development";
+
+export type SceneLayer = "cognitive" | "organism" | "diagnostic";
+
+export interface InboxStatus {
+  pending?: number;
+  processing?: number;
+  completed?: number;
+  failed?: number;
+  total?: number;
+  [key: string]: unknown;
+}
 
 export interface RunnerStatus {
   ticks?: number;
   total_processed?: number;
-  inbox?: number;
+  inbox?: number | InboxStatus;
   working_memory_size?: number;
   [key: string]: unknown;
 }
@@ -86,6 +102,7 @@ export interface SceneNode {
   id: string;
   objectId: string;
   kind: SceneKind;
+  layer: SceneLayer;
   label: string;
   summary: string;
   x: number;
@@ -108,6 +125,36 @@ export interface SceneEdge {
   tension?: boolean;
 }
 
+export interface SceneZone {
+  id: "perception" | "belief" | "curiosity" | "prediction" | "learning" | "agency" | "diagnostic";
+  label: string;
+  count: number;
+  state: "active" | "quiet" | "unformed" | "clear";
+  detail: string;
+}
+
+export interface OrganismProfile {
+  focus: string | null;
+  phase: string | null;
+  assessment: string | null;
+  stress: number;
+  dominantGoal: string | null;
+  dominantGoalPressure: number;
+  protectOverridesExploit: boolean;
+  activeGoals: string[];
+  workspaceItems: number;
+  workspaceCapacity: number;
+  pressures: {
+    uncertainty: number;
+    contradiction: number;
+    curiosity: number;
+    revenue: number;
+    risk: number;
+    memory: number;
+    action: number;
+  };
+}
+
 export interface CognitiveScene {
   nodes: SceneNode[];
   edges: SceneEdge[];
@@ -116,4 +163,8 @@ export interface CognitiveScene {
   workingMemorySize: number;
   memoryPressure: number;
   counts: Record<SceneKind, number>;
+  cognitiveCount: number;
+  diagnosticCount: number;
+  zones: SceneZone[];
+  organism: OrganismProfile;
 }
