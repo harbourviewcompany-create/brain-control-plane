@@ -27,6 +27,8 @@ export function upstreamApiKey(): string {
   return process.env.BRAIN_API_KEY || "";
 }
 
+const PUBLIC_UPSTREAM_PATHS = new Set(["health", "ready"]);
+
 const ALLOWED_PREFIXES = [
   "health",
   "ready",
@@ -71,6 +73,17 @@ export async function proxyToBrain(
     return Response.json({ detail: "path_not_allowed" }, { status: 404 });
   }
 
+  const key = upstreamApiKey();
+  if (!key && !PUBLIC_UPSTREAM_PATHS.has(pathSegments[0])) {
+    return Response.json(
+      { detail: "brain_bff_api_key_not_configured" },
+      {
+        status: 503,
+        headers: { "cache-control": "no-store" },
+      }
+    );
+  }
+
   const base = upstreamBase();
   const path = "/" + pathSegments.map(encodeURIComponent).join("/");
   const url = `${base}${path}${init.search || ""}`;
@@ -81,7 +94,6 @@ export async function proxyToBrain(
   const contentType = init.headers?.get("content-type");
   if (contentType) headers["content-type"] = contentType;
 
-  const key = upstreamApiKey();
   if (key) {
     headers["X-Brain-Api-Key"] = key;
   }
